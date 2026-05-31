@@ -475,8 +475,8 @@ button, [onclick] { touch-action: manipulation; }
   /* seatView（ホワイトボード＋グリッド）を幅いっぱいに */
   #seatView { width: 100%; }
 
-  /* 座席セルを大きく */
-  .seat { min-height: 64px; }
+  /* 座席セル：グリッド幅に合わせて自動調整（min-widthによるオーバーフロー防止） */
+  .seat { min-height: 64px; min-width: 0 !important; }
   .name { font-size: 15px; }
   .furigana { font-size: 11px; }
 
@@ -500,12 +500,22 @@ button, [onclick] { touch-action: manipulation; }
   .cs-name { font-size: 17px; }
 }
 
-/* iPad縦向き / 小型タブレット（〜820px）*/
+/* iPad縦向き / 小型タブレット（〜820px）：縦スタックレイアウト */
 @media (max-width: 820px) {
   .header h1 { font-size: 14px; }
   .mode-tabs { flex-wrap: wrap; gap: 4px; }
   .btn { padding: 7px 11px; font-size: 12px; }
-  .main { padding: 10px 10px; }
+
+  /* グリッドを全幅、グループ一覧を下に移動 */
+  .main { flex-direction: column !important; padding: 8px !important; gap: 8px !important; }
+  .classroom-wrap { order: 1; width: 100% !important; flex: none !important; overflow-x: hidden; }
+  .legend-panel { order: 2; width: 100% !important; max-height: 220px; overflow-y: auto; margin-top: 0; }
+  .room-label-wrap { width: 100% !important; }
+  #seatView { width: 100% !important; }
+  .seat { min-height: 75px !important; min-width: 0 !important; font-size: 13px; }
+  .name { font-size: 14px !important; }
+  .furigana { font-size: 10px !important; }
+
   /* クラス選択画面 */
   .cs-header { padding: 16px 18px; }
   .cs-header h1 { font-size: 18px; }
