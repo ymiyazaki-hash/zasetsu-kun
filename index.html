@@ -752,6 +752,19 @@ kbd{background:#f0f0f0;border:1px solid #ccc;border-radius:4px;padding:2px 7px;f
 .btn-save-load.load:hover{background:#2980b9;}
 .btn-save-load.del{background:#e8eaed;color:#e74c3c;border:1px solid #e0e0e0;}
 .btn-save-load.del:hover{background:#fdecea;}
+/* ===== 手動配置モード ===== */
+body.assign-mode .seat.empty{background:#eafaf1!important;border:2px dashed #27ae60!important;cursor:pointer!important;}
+body.assign-mode .seat.empty:hover{background:#d5f5e3!important;transform:translateY(-2px);box-shadow:0 4px 12px rgba(39,174,96,0.2);}
+body.assign-mode .seat:not(.empty):not(.obstacle-cell):hover{box-shadow:0 0 0 2px rgba(231,76,60,0.5);cursor:pointer!important;}
+.assign-add-badge{font-size:20px;color:#27ae60;font-weight:bold;line-height:1;}
+.assign-remove-badge{position:absolute;top:3px;right:4px;width:14px;height:14px;background:#e74c3c;color:white;border-radius:50%;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:bold;pointer-events:none;}
+#assignPickerModal{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;}
+#assignPickerModal.open{display:flex;}
+.assign-picker-box{background:white;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:70vh;display:flex;flex-direction:column;gap:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+.assign-picker-title{font-size:16px;font-weight:bold;color:#2c3e50;}
+.assign-picker-list{overflow-y:auto;display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;}
+.assign-picker-btn{padding:8px 16px;border:2px solid #27ae60;border-radius:20px;background:white;color:#1a6b3a;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit;transition:all 0.15s;}
+.assign-picker-btn:hover{background:#27ae60;color:white;}
 </style>
 </head>
 <body>
@@ -1170,6 +1183,7 @@ kbd{background:#f0f0f0;border:1px solid #ccc;border-radius:4px;padding:2px 7px;f
   <button class="btn btn-red" onclick="randomAll()">🔀 ランダム</button>
   <button class="btn btn-ng" id="ngModeBtn" onclick="toggleNGMode()" title="同じ班にしたくない2人を選んで設定">N設定</button>
   <button class="btn btn-ng" id="jtModeBtn" onclick="toggleJTMode()" title="同じ班にしたい2人を選んで設定" style="background:#1a6b3a;color:white;">JT設定</button>
+  <button class="btn" id="assignModeBtn" onclick="toggleAssignMode()" style="background:#1abc9c;color:white;" title="空き座席をクリックして学生を手動で配置">✏️ 手動配置</button>
   <button class="btn" id="obsModeBtn" onclick="toggleObstacleMode()" title="柱・ホワイトボード・仕切りなど座席を仕切るものを配置">🚧 障害物</button>
   <button class="btn btn-gray" id="undoBtn" onclick="undoState()" style="visibility:hidden;">↩ 戻る</button>
   <button class="btn btn-gray" id="redoBtn" onclick="redoState()" style="visibility:hidden;">↪ 進む</button>
@@ -1241,6 +1255,12 @@ kbd{background:#f0f0f0;border:1px solid #ccc;border-radius:4px;padding:2px 7px;f
   <span id="jtFirstName" style="font-size:13px;font-weight:bold;color:#333;"></span>
   <div id="jtList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
   <button class="btn btn-gray" onclick="toggleJTMode()" style="padding:5px 12px;font-size:12px;">完了</button>
+</div>
+
+<div id="assignBar" style="display:none;padding:8px 20px;background:#e8f8f5;border-bottom:2px solid #1abc9c;gap:10px;flex-wrap:wrap;align-items:center;">
+  <span style="font-size:13px;font-weight:bold;color:#0e6655;">✏️ 手動配置モード</span>
+  <span id="assignStatus" style="font-size:13px;color:#333;"></span>
+  <button class="btn btn-gray" onclick="toggleAssignMode()" style="padding:5px 12px;font-size:12px;">完了</button>
 </div>
 
 <div id="actionBar" style="display:none;padding:8px 20px;background:#fff3cd;border-bottom:2px solid #f39c12;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -1335,6 +1355,16 @@ kbd{background:#f0f0f0;border:1px solid #ccc;border-radius:4px;padding:2px 7px;f
 </div>
 
 <!-- グループ編集モーダル -->
+<div id="assignPickerModal" onclick="if(event.target===this)closeAssignPicker()">
+  <div class="assign-picker-box">
+    <div class="assign-picker-title">📋 配置する学生を選んでください</div>
+    <div class="assign-picker-list" id="assignPickerList"></div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button class="btn btn-gray" onclick="closeAssignPicker()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="groupEditorModal">
   <div class="modal">
     <div class="modal-header">
@@ -2129,6 +2159,8 @@ function resetAll() {
 
 // ===== NGペア（同じ班禁止） =====
 let ngMode = false;
+let assignMode = false;
+let assignTargetSeat = null;
 let ngFirstStudent = null;
 let ngPairs = [];
 
@@ -2180,6 +2212,93 @@ function handleNGClick(row, col) {
 function removeNGPair(idx) {
   ngPairs.splice(idx, 1);
   renderNGList();
+  render();
+}
+
+// ===== 手動配置モード =====
+function toggleAssignMode() {
+  assignMode = !assignMode;
+  const btn = document.getElementById('assignModeBtn');
+  btn.classList.toggle('on', assignMode);
+  btn.style.background = assignMode ? '#16a085' : '#1abc9c';
+  document.getElementById('assignBar').style.display = assignMode ? 'flex' : 'none';
+  document.body.classList.toggle('assign-mode', assignMode);
+  if (assignMode) {
+    if (ngMode) toggleNGMode();
+    if (jtMode) toggleJTMode();
+    if (typeof obstacleMode !== 'undefined' && obstacleMode) toggleObstacleMode();
+    if (spacerMode) toggleSpacerMode();
+    updateAssignStatus();
+  }
+  closeAssignPicker();
+  clearSelection();
+  render();
+}
+
+function getUnassignedStudents() {
+  const assigned = new Set();
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (seats[r][c] !== null) assigned.add(seats[r][c]);
+    }
+  }
+  return STUDENTS.map((_, i) => i).filter(i => !assigned.has(i));
+}
+
+function updateAssignStatus() {
+  const unassigned = getUnassignedStudents();
+  const el = document.getElementById('assignStatus');
+  if (!el) return;
+  if (unassigned.length === 0) {
+    el.textContent = '全員配置済み ✅　— 空き座席をクリックして取り外しも可能';
+  } else {
+    el.textContent = `未配置 ${unassigned.length}名 | 空き座席→配置、配置済み座席→取り外し`;
+  }
+}
+
+function handleAssignClick(row, col) {
+  const si = seats[row][col];
+  if (si === null) {
+    assignTargetSeat = {row, col};
+    openAssignPicker();
+  } else {
+    saveHistory();
+    seats[row][col] = null;
+    updateAssignStatus();
+    render();
+  }
+}
+
+function openAssignPicker() {
+  const unassigned = getUnassignedStudents();
+  const list = document.getElementById('assignPickerList');
+  list.innerHTML = '';
+  if (unassigned.length === 0) {
+    list.innerHTML = '<span style="color:#999;font-size:13px;">未配置の学生はいません</span>';
+  } else {
+    unassigned.forEach(si => {
+      const btn = document.createElement('button');
+      btn.className = 'assign-picker-btn';
+      btn.textContent = STUDENTS[si].name;
+      if (STUDENTS[si].kana) btn.title = STUDENTS[si].kana;
+      btn.onclick = () => assignStudent(si);
+      list.appendChild(btn);
+    });
+  }
+  document.getElementById('assignPickerModal').classList.add('open');
+}
+
+function closeAssignPicker() {
+  document.getElementById('assignPickerModal').classList.remove('open');
+  assignTargetSeat = null;
+}
+
+function assignStudent(si) {
+  if (!assignTargetSeat) return;
+  saveHistory();
+  seats[assignTargetSeat.row][assignTargetSeat.col] = si;
+  closeAssignPicker();
+  updateAssignStatus();
   render();
 }
 
@@ -2417,6 +2536,7 @@ function onSeatClick(row, col) {
   if (_dd.moved) { _dd.moved = false; return; } // ドラッグ直後のclick抑制
   if (ngMode) { handleNGClick(row, col); return; }
   if (jtMode) { handleJTClick(row, col); return; }
+  if (assignMode) { handleAssignClick(row, col); return; }
   const isEmpty = seats[row][col] === null;
   if (selectedSeat === null) {
     selectedSeat = {row, col};
@@ -4542,7 +4662,8 @@ function renderSeat() {
           // 通常の空席
           div.className = `seat empty${isSwapTarget ? ' swap-target' : ''}${isSel ? ' selected' : ''}${isEmptyLocked ? ' locked' : ''}`;
           const emptyColor = isSwapTarget ? '#e74c3c' : '#ccc';
-          const emptyContent = isSwapTarget ? '移動'
+          const emptyContent = assignMode ? '<div class="assign-add-badge">＋</div>'
+            : isSwapTarget ? '移動'
             : `<div style="color:${emptyColor};font-size:${compact?'9':'11'}px;">${emptyLabel}</div>`;
           div.innerHTML = emptyContent + lockMark;
         }
@@ -4556,6 +4677,7 @@ function renderSeat() {
         div.className = `seat ${groupCls}${isSel?' selected':''}${isLocked?' locked':''}${isNGFirst?' ng-first':''}${isNGMarked?' ng-marked':''}`;
         const ngBadge = isNGMarked ? '<div class="lock-badge">🚫</div>' : '';
         const lockBadge = isLocked ? '<div class="lock-badge">🔒</div>' : '';
+        const assignBadge = assignMode ? '<div class="assign-remove-badge">✕</div>' : '';
         if (compact) {
           let dispName;
           if (isMultiClass) {
@@ -4566,23 +4688,23 @@ function renderSeat() {
           }
           // 3クラス以上: 縦書き (.name-v)、それ以外: 横書き (.name)
           const nc = verticalName ? 'name-v' : 'name';
-          div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="${nc}">${dispName}</div>${lockBadge}${ngBadge}`;
+          div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="${nc}">${dispName}</div>${lockBadge}${ngBadge}${assignBadge}`;
         } else {
           if (isMultiClass) {
             const {dispName, dispKana} = _getMultiClassDispName(si);
             if (verticalName) {
               // 3クラス以上: ふりがななし・縦書き
-              div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="name-v">${dispName}</div>${lockBadge}${ngBadge}`;
+              div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="name-v">${dispName}</div>${lockBadge}${ngBadge}${assignBadge}`;
             } else {
-              div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="furigana">${dispKana}</div><div class="name">${dispName}</div>${lockBadge}${ngBadge}`;
+              div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="furigana">${dispKana}</div><div class="name">${dispName}</div>${lockBadge}${ngBadge}${assignBadge}`;
             }
           } else {
-            div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="furigana">${STUDENTS[si].kana}</div><div class="name">${STUDENTS[si].name}</div>${lockBadge}${ngBadge}`;
+            div.innerHTML = `<div class="row-label">${ROW_LABELS[r]}</div><div class="furigana">${STUDENTS[si].kana}</div><div class="name">${STUDENTS[si].name}</div>${lockBadge}${ngBadge}${assignBadge}`;
           }
         }
         div.onclick = obstacleMode ? () => openObstaclePicker(r,c) : () => onSeatClick(r,c);
       }
-      if (!obstacleMode && !ngMode && !jtMode && !spacerMode && !rowMoveMode) _ddBind(div, r, c);
+      if (!obstacleMode && !ngMode && !jtMode && !spacerMode && !rowMoveMode && !assignMode) _ddBind(div, r, c);
       grid.appendChild(div);
     }
     // ===== 行ボタン（spacerMode時のみ） =====
