@@ -2228,6 +2228,12 @@ function toggleAssignMode() {
     if (jtMode) toggleJTMode();
     if (typeof obstacleMode !== 'undefined' && obstacleMode) toggleObstacleMode();
     if (spacerMode) toggleSpacerMode();
+    saveHistory();
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        seats[r][c] = null;
+      }
+    }
     updateAssignStatus();
   }
   closeAssignPicker();
