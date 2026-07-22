@@ -5432,9 +5432,9 @@ function startMultiClass() {
   selectedClasses = [];
   csMultiMode = false;
   if (cls.length === 1) {
-    loadClass(cls[0]);
+    showRoomPicker(cls[0]);
   } else {
-    loadClasses(cls);
+    showRoomPickerForMulti(cls);
   }
 }
 
@@ -5497,7 +5497,7 @@ function loadClass(cls) {
 }
 
 // ===== 合同クラスロード =====
-function loadClasses(clsArray) {
+function loadClasses(clsArray, rooms = []) {
   isMultiClass = true;
   showClassZoneHeader = true; // 合同クラスロード時はクラス帯を表示状態にリセット
   // 整列をリセット
@@ -5551,7 +5551,7 @@ function loadClasses(clsArray) {
   rebuildGroupZones();
 
   // 状態リセット
-  currentClassData = {id:'multi', label: clsArray.map(c => c.label).join(' ＋ '), color:'#555', students: allStudents};
+  currentClassData = {id:'multi', label: clsArray.map(c => c.label).join(' ＋ '), rooms, color:'#555', students: allStudents};
   isGrouped = false;
   zoneSwapSelected = -1;
   lockedStudents = new Set();
@@ -5569,7 +5569,7 @@ function loadClasses(clsArray) {
 
   // タイトル
   document.getElementById('appTitle').textContent =
-    clsArray.map(c => c.course + '\u3000' + (c.label.split('\u3000').pop() || c.label)).join(' ＋ ') + '　合同座席表';
+    clsArray.map(c => c.course + '\u3000' + (c.label.split('\u3000').pop() || c.label)).join(' ＋ ') + '　合同座席表' + (rooms && rooms.length ? '　' + rooms.join('・') : '');
   document.getElementById('classSelectScreen').style.display = 'none';
 
   // UI リセット
@@ -6504,12 +6504,26 @@ function applyRoomLabels() {
 
 // ===== 教室選択モーダル（既存クラス用）=====
 let rpmPendingClass = null;
+let rpmPendingMultiClasses = null;
 let rpmSelectedRooms = [];
 
 function showRoomPicker(cls) {
   rpmPendingClass = cls;
+  rpmPendingMultiClasses = null;
   rpmSelectedRooms = [];
   document.getElementById('rpmClassInfo').textContent = cls.label;
+  document.getElementById('rpmRoomDirect').value = '';
+  document.getElementById('rpmRoomSelected').textContent = '';
+  rpmRenderPicker();
+  document.getElementById('roomPickerModal').classList.add('open');
+}
+
+function showRoomPickerForMulti(clsArray) {
+  rpmPendingMultiClasses = clsArray;
+  rpmPendingClass = null;
+  rpmSelectedRooms = [];
+  const label = clsArray.map(c => c.course + ' ' + (c.label.split('　').pop() || c.label)).join(' ＋ ');
+  document.getElementById('rpmClassInfo').textContent = label;
   document.getElementById('rpmRoomDirect').value = '';
   document.getElementById('rpmRoomSelected').textContent = '';
   rpmRenderPicker();
@@ -6564,18 +6578,29 @@ function rpmUpdateLabel() {
 function rpmConfirm() {
   const direct = document.getElementById('rpmRoomDirect').value.trim();
   const rooms = [...rpmSelectedRooms, ...(direct ? [direct] : [])];
-  const cls = {...rpmPendingClass, rooms};
-  // 教室名をlocalStorageに永続保存（ビルトインクラス用）
-  if (cls.id && !cls.isCustom) {
-    localStorage.setItem('classRooms_' + cls.id, JSON.stringify(rooms));
-  }
   document.getElementById('roomPickerModal').classList.remove('open');
-  loadClass(cls);
+  if (rpmPendingMultiClasses) {
+    const clsArray = rpmPendingMultiClasses;
+    rpmPendingMultiClasses = null;
+    loadClasses(clsArray, rooms);
+  } else {
+    const cls = {...rpmPendingClass, rooms};
+    if (cls.id && !cls.isCustom) {
+      localStorage.setItem('classRooms_' + cls.id, JSON.stringify(rooms));
+    }
+    loadClass(cls);
+  }
 }
 
 function rpmSkip() {
   document.getElementById('roomPickerModal').classList.remove('open');
-  loadClass(rpmPendingClass);
+  if (rpmPendingMultiClasses) {
+    const clsArray = rpmPendingMultiClasses;
+    rpmPendingMultiClasses = null;
+    loadClasses(clsArray, []);
+  } else {
+    loadClass(rpmPendingClass);
+  }
 }
 
 applyGroupColors();
