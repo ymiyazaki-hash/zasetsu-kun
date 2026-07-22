@@ -6698,6 +6698,11 @@ document.addEventListener('click', function(e) {
 // ===== 座席保存・読込 =====
 function _getSavesKey() {
   if (!currentClassData) return null;
+  if (currentClassData.id === 'multi') {
+    // 合同クラスはクラス組み合わせを key に含める（異なる組み合わせで上書きされるのを防ぐ）
+    const comboKey = classZones.map(z => z.cls.id).join('_');
+    return 'seatSaves_multi_' + comboKey;
+  }
   return 'seatSaves_' + currentClassData.id;
 }
 
@@ -6710,7 +6715,11 @@ function _loadSaves() {
 function _storeSaves(arr) {
   const key = _getSavesKey();
   if (!key) return;
-  localStorage.setItem(key, JSON.stringify(arr));
+  try {
+    localStorage.setItem(key, JSON.stringify(arr));
+  } catch(e) {
+    alert('⚠️ 保存容量が上限に達しました。古い保存を削除してから再試行してください。\n（重要な配置は📊 Excel保存をご利用ください）');
+  }
 }
 
 function openSaveModal() {
@@ -7123,6 +7132,9 @@ function _renderSaveList() {
         <button class="btn btn-blue" onclick="executeSaveSeat()">💾 保存</button>
       </div>
       <div id="saveSeatList"></div>
+      <div style="font-size:11px;color:#999;background:#f8f8f8;border-radius:6px;padding:8px 12px;margin-top:10px;line-height:1.6;">
+        ⚠️ 一時保存はブラウザに保存されます。Safariでは7日間未アクセスで自動削除される場合があります。大切な配置は <strong>📊 Excel保存</strong> をお使いください。
+      </div>
     </div>
   </div>
 </div>
