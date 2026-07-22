@@ -3073,11 +3073,27 @@ function quickChangeRows(delta) {
     const newRows = Math.max(1, Math.min(30, ROWS + delta));
     if (newRows === ROWS) return;
     saveHistory();
-    const zoneStudents = _saveZoneStudents();
+
+    // 現在の学生位置を座標付きで保存（ゾーン内列オフセット dc で記録）
+    const zonePositions = classZones.map(zone => {
+      const positioned = [];
+      for (let r = 0; r < ROWS; r++) {
+        for (let dc = 0; dc < zone.numCols; dc++) {
+          const c = zone.startCol + dc;
+          if (c < COLS && seats[r] && seats[r][c] !== null) {
+            positioned.push({si: seats[r][c], r, dc});
+          }
+        }
+      }
+      return positioned;
+    });
+
     ROWS = newRows;
     let sc = 0;
-    classZones = classZones.map(zone => {
-      const numCols = Math.max(2, Math.ceil(zone.studentCount / ROWS));
+    classZones = classZones.map((zone, zi) => {
+      // 列数は現在値を維持（学生が入りきらない場合のみ拡大）
+      const minCols = Math.max(2, Math.ceil(zone.studentCount / ROWS));
+      const numCols = Math.max(minCols, zone.numCols);
       const updated = {...zone, startCol: sc, numCols};
       sc += numCols;
       return updated;
@@ -3089,7 +3105,32 @@ function quickChangeRows(delta) {
       placeInvalidSeats(zone.startCol, zone.numCols, zone.numCols * ROWS - zone.studentCount);
     });
     rebuildGroupZones();
-    _restoreZoneStudents(zoneStudents);
+
+    // 学生を元の位置に復元（位置が無効になった学生は空き席に移動）
+    seats = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+    classZones.forEach((zone, zi) => {
+      const displaced = [];
+      for (const {si, r, dc} of zonePositions[zi]) {
+        const c = zone.startCol + dc;
+        if (r < ROWS && dc < zone.numCols &&
+            seatToGroupDyn[r] && seatToGroupDyn[r][c] >= 0 && seats[r][c] === null) {
+          seats[r][c] = si;
+        } else {
+          displaced.push(si);
+        }
+      }
+      // 元の位置に置けなかった学生を先頭の空き有効席に配置
+      outer: for (let c = zone.startCol; c < zone.startCol + zone.numCols; c++) {
+        for (let r = 0; r < ROWS; r++) {
+          if (!displaced.length) break outer;
+          if (seatToGroupDyn[r] && seatToGroupDyn[r][c] >= 0 && seats[r][c] === null) {
+            seats[r][c] = displaced.shift();
+          }
+        }
+      }
+    });
+    studentOrder = zonePositions.flatMap(arr => arr.map(p => p.si));
+
     document.getElementById('quickRowsDisplay').textContent = ROWS;
     document.getElementById('editRowsDisplay').textContent = ROWS;
     document.getElementById('quickColsDisplay').textContent = COLS;
