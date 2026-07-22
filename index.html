@@ -3928,9 +3928,9 @@ function downloadExcel() {
     seatRows.forEach((r, ri) => {
       seatCols.forEach((c, ci) => {
         const gi = seatToGroupDyn[r]?.[c] ?? -1;
-        if (gi < 0) return; // 無効席
         const si = seats[r][c];
         const er = ER(ri), ec = EC(ci);
+        // gi<0かつsi===nullは無効席（アプリ上は空席として表示されるのでExcelも空席として出力）
         // ===== 障害物 =====
         const obsKey = `${r},${c}`;
         if (obstacles[obsKey]) {
