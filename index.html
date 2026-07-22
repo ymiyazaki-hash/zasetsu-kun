@@ -1181,6 +1181,7 @@ body.assign-mode .seat:not(.empty):not(.obstacle-cell):hover{box-shadow:0 0 0 2p
 
 <div class="controls">
   <button class="btn btn-red" onclick="randomAll()">🔀 ランダム</button>
+  <button class="btn" onclick="sortStudentsKana()" style="background:#5d6d7e;color:white;" title="空席の位置はそのままで、着席中の学生を50音順に並び替え">🔤 50音順</button>
   <button class="btn btn-ng" id="ngModeBtn" onclick="toggleNGMode()" title="同じ班にしたくない2人を選んで設定">N設定</button>
   <button class="btn btn-ng" id="jtModeBtn" onclick="toggleJTMode()" title="同じ班にしたい2人を選んで設定" style="background:#1a6b3a;color:white;">JT設定</button>
   <button class="btn" id="assignModeBtn" onclick="toggleAssignMode()" style="background:#1abc9c;color:white;" title="空き座席をクリックして学生を手動で配置">✏️ 手動配置</button>
@@ -2418,6 +2419,38 @@ function calcEvenSizes(total, groups) {
     sizes.push(i < rem ? base + 1 : base);
   }
   return sizes;
+}
+
+function sortStudentsKana() {
+  saveHistory();
+  const sortPositions = (positions) => {
+    const studentIndices = positions.map(p => seats[p.r][p.c]);
+    studentIndices.sort((a, b) => {
+      const ka = STUDENTS[a].kana || STUDENTS[a].name;
+      const kb = STUDENTS[b].kana || STUDENTS[b].name;
+      return ka.localeCompare(kb, 'ja');
+    });
+    positions.forEach((pos, i) => { seats[pos.r][pos.c] = studentIndices[i]; });
+  };
+
+  if (isMultiClass) {
+    // 合同クラス：ゾーンごとに独立してソート
+    classZones.forEach(zone => {
+      const positions = [];
+      for (let r = 0; r < ROWS; r++)
+        for (let c = zone.startCol; c < zone.startCol + zone.numCols; c++)
+          if (seats[r][c] !== null) positions.push({r, c});
+      sortPositions(positions);
+    });
+  } else {
+    // 単独クラス：列ごとに前から後ろ、左から右の順で並べる
+    const positions = [];
+    for (let c = 0; c < COLS; c++)
+      for (let r = 0; r < ROWS; r++)
+        if (seats[r][c] !== null) positions.push({r, c});
+    sortPositions(positions);
+  }
+  render();
 }
 
 function randomAll() {
