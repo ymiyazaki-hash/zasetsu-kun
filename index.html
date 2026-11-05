@@ -2092,6 +2092,7 @@ function resetGridSize() {
 }
 
 function resetAll() {
+  obstacles = {};
   // 合同クラスの場合は classZones を保持して再初期化（前詰め防止）
   if (isMultiClass && classZones.length > 0) {
     const clsArray = classZones.map(z => z.cls);
